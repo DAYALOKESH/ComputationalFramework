@@ -30,9 +30,8 @@ function PL = bullington_wrapper(Scenario, TerrainProfile)
     %% 2. Constants
     c = 3e8;
     lambda = c / freq;
-    k_factor = 4/3;
-    R_earth = 6371000;
-    R_effective = k_factor * R_earth;
+    % Use standardized effective Earth radius for consistency across models
+    [R_effective, ~] = get_effective_earth_radius(301);
     
     %% 3. Initialization
     PL = zeros(num_points, 1);

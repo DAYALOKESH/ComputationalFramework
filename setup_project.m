@@ -13,6 +13,7 @@ function setup_project()
         fullfile(root_dir, 'models', 'empirical'),
         fullfile(root_dir, 'models', 'diffraction'),
         fullfile(root_dir, 'models', 'fullwave'),
+        fullfile(root_dir, 'models', 'utils'),
         fullfile(root_dir, 'data'),
         fullfile(root_dir, 'output')
     };

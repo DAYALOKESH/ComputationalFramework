@@ -144,30 +144,41 @@ function PL = efie_wrapper(Scenario, TerrainProfile)
     end
     
     %% 8. Convert to Path Loss
-    % Strategy: 
-    % 1. Calculate Diffraction Loss (Excess Loss) from the 2D EFIE result.
-    %    L_diff = -20 * log10( |Et| / |Ei| )
-    % 2. Add this to the standard 3D Free Space Path Loss (FSPL).
-    %    PL_total = FSPL_3D + L_diff
+    % Strategy:
+    % The 2D EFIE solution provides field magnitudes that include cylindrical 
+    % spreading (1/sqrt(rho) dependence). To extract the terrain-specific 
+    % excess loss (diffraction, interference, scattering), we normalize by
+    % sqrt(rho) before computing the ratio. This excess loss is then combined
+    % with 3D free-space path loss for realistic propagation estimates.
     
-    % 3D FSPL
-    dist_3d = sqrt((X_terrain - Xsource).^2 + (Y_terrain + rx_h - (Ysource)).^2);
-    fspl_3d = 20 * log10(4 * pi * dist_3d / lambda);
+    % Calculate 2D distances (cylindrical geometry)
+    dist_2d = abs(X_terrain - Xsource);
     
-    % 2D Diffraction Loss
+    % Normalize field magnitudes by cylindrical spreading (1/sqrt(R))
+    % to extract only the diffraction/interference effects
     mag_Ei = abs(Ei_total);
     mag_Et = abs(Et_total);
     
-    % Prevent log(0)
+    % Prevent division by zero
     mag_Et(mag_Et < 1e-20) = 1e-20;
     mag_Ei(mag_Ei < 1e-20) = 1e-20;
+    dist_2d(dist_2d < 1e-3) = 1e-3;
     
-    L_diff = 20 * log10(mag_Ei ./ mag_Et);
+    % Normalize by cylindrical spreading to get excess field
+    Ei_normalized = mag_Ei .* sqrt(dist_2d);
+    Et_normalized = mag_Et .* sqrt(dist_2d);
     
-    % Combine
-    PL = fspl_3d + L_diff;
+    % Excess loss is the additional loss beyond cylindrical spreading
+    L_excess = 20 * log10(Ei_normalized ./ Et_normalized);
     
-    % Clean up first point
+    % 3D Free Space Path Loss for point source
+    dist_3d = sqrt((X_terrain - Xsource).^2 + (Y_terrain + rx_h - Ysource).^2);
+    FSPL_3D = 20 * log10(4 * pi * dist_3d / lambda);
+    
+    % Total path loss = 3D spreading + excess loss from terrain
+    PL = FSPL_3D + L_excess;
+    
+    % Clean up first point (source location)
     PL(1) = 0;
 
 end
