@@ -358,6 +358,8 @@ else  % Vertical
 end
 ```
 
+The complex permittivity formulation accounts for both displacement current (real part, ε_r) and conduction current (imaginary part, σ/(ωε₀)) in the ground medium. This enables accurate modeling of ground reflection effects across the frequency range, where the reflection coefficient magnitude approaches unity at grazing incidence and decreases toward the pseudo-Brewster angle for vertical polarization. The implementation correctly handles both horizontal (TE) and vertical (TM) polarization cases.
+
 #### 3.2.4 Variability Calculation (avar.m)
 
 **Location Variability**:
@@ -670,13 +672,13 @@ paths_to_add = {
 ### 7.1 MATLAB Requirements
 
 Based on functions used:
-- `readmatrix` (R2019a+)
-- `quadgk` (adaptive quadrature integration)
-- `besselj`, `bessely` (Bessel functions)
-- `interp1` (linear interpolation)
-- `norminv` (Statistics Toolbox)
+- `readmatrix` (R2019a+) - Required for terrain data loading
+- `quadgk` (R2007b+) - Adaptive Gauss-Kronrod quadrature integration
+- `besselj`, `bessely` (R2006a+) - Bessel functions of first and second kind
+- `interp1` (R2006a+) - Linear interpolation
+- `norminv` (Statistics Toolbox, R2006a+) - Inverse normal distribution
 
-Minimum version: **MATLAB R2019a** with Statistics Toolbox
+Minimum version: **MATLAB R2019a** with Statistics Toolbox (due to `readmatrix` dependency)
 
 ### 7.2 Python Requirements
 
