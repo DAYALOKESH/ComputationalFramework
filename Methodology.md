@@ -132,7 +132,13 @@ J(\nu_p)/6 & J(\nu_p) < 6 \text{ dB} \\
 
 and $C = 8.0 + 0.04 D_{km}$ provides distance-dependent correction with $D_{km}$ representing total path length in kilometers. This heuristic correction accounts for multiple scattering effects and ensures smooth transition behavior as additional edges become significant.
 
-The effective Earth radius used in all diffraction calculations is set to $R_e = 8.495 \times 10^6$ meters (k ≈ 4/3), corresponding to the standard ITM effective Earth radius factor accounting for normal atmospheric refractivity (Ns = 301 N-units).
+The effective Earth radius used in all diffraction calculations is computed using the ITM standard formula:
+
+$$k = \frac{1}{1 - 0.04665 \cdot \exp(N_s/179.3)}$$
+
+$$a_{eff} = k \cdot a_{earth}$$
+
+For standard atmosphere ($N_s = 301$ N-units), this yields $k \approx 4/3$ and $a_{eff} \approx 8.495 \times 10^6$ meters.
 
 ### 5) Okumura-Hata and COST-231 Empirical Models
 

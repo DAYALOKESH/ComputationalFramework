@@ -159,9 +159,12 @@ function PL = efie_wrapper(Scenario, TerrainProfile)
     mag_Ei = abs(Ei_total);
     mag_Et = abs(Et_total);
     
-    % Prevent division by zero
+    % Prevent division by zero and numerical issues
     mag_Et(mag_Et < 1e-20) = 1e-20;
     mag_Ei(mag_Ei < 1e-20) = 1e-20;
+    % Minimum distance threshold (1 mm) prevents singularity at source location
+    % and ensures numerical stability in near-field region. This is well below
+    % typical wavelengths (lambda ~0.3m at 970 MHz) and discretization scales.
     dist_2d(dist_2d < 1e-3) = 1e-3;
     
     % Normalize by cylindrical spreading to get excess field

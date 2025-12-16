@@ -132,6 +132,8 @@ function A_diff = calc_diffraction(d, freq, prop, lambda)
     w = k_rough^2 / (1 + k_rough^2);
     
     % Blended diffraction attenuation
+    % Note: Foliage/forward obstacle loss (A_fo) not implemented in this version.
+    % Can be extended for vegetation modeling in future iterations.
     A_diff = (1 - w) * A_r + w * A_ke;
 end
 
