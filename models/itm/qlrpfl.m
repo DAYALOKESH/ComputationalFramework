@@ -17,10 +17,10 @@ function prop = qlrpfl(pfl, prop_params)
 
     % 1. Physical Constants
     N_s = prop_params.N_s;
-    % Calculate Effective Earth Radius
-    % gamma_e = gamma_a * (1 - 0.04665 * exp(Ns/N1)) where N1=179.3 usually.
-    % Simplified common ITM approx: k = 1 / (1 - 0.04665 * exp(Ns/179.3))
-    % Standard ITM k-factor formula used in ITS code:
+    % Calculate Effective Earth Radius using ITM standard formula
+    % This matches the shared utility get_effective_earth_radius() for consistency
+    % k = 1 / (1 - 0.04665 * exp(Ns/179.3))
+    % For N_s = 301: k ≈ 4/3, a_eff ≈ 8.495e6 m
     k_factor = 1.0 / (1.0 - 0.04665 * exp(N_s / 179.3));
     a_earth = 6371000; % meters
     prop.a_eff = k_factor * a_earth;

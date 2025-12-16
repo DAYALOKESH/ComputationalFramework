@@ -54,9 +54,11 @@ This iterative approach achieves $O(N^2)$ computational complexity compared to $
 
 **Path Loss Calculation:** The scattered electric field at each receiver position is computed by summing contributions from all surface current elements. The total path loss combines three-dimensional free-space path loss with the two-dimensional excess loss derived from the integral equation solution:
 
-$$PL_{total} = 20\log_{10}\left(\frac{4\pi d}{λ}\right) + 20\log_{10}\left(\frac{|E_{inc}|}{|E_{total}|}\right)$$
+$$PL_{total} = 20\log_{10}\left(\frac{4\pi d}{λ}\right) + 20\log_{10}\left(\frac{|E_{inc,norm}|}{|E_{total,norm}|}\right)$$
 
 where $d$ represents the direct distance between transmitter and receiver, and $|E_{total}| = |E_{inc} - E_{scattered}|$ accounts for the coherent superposition of incident and scattered fields.
+
+The two-dimensional EFIE solution provides field magnitudes that inherently include cylindrical spreading characteristics (1/√ρ dependence where ρ is radial distance from the source). To extract the terrain-specific excess loss—representing diffraction, interference, and scattering effects—these field magnitudes are normalized by √ρ before computing the logarithmic ratio. This normalized excess loss is then combined with three-dimensional free-space path loss to approximate realistic propagation conditions. This approach separates geometric spreading (point source in 3D space) from terrain interaction effects (captured by 2D surface wave analysis), providing a physically consistent path loss estimate.
 
 ### 2) Longley-Rice Irregular Terrain Model (ITM)
 
@@ -74,9 +76,9 @@ Effective antenna heights $h_e$ are determined through least-squares fitting (`z
 
 **Propagation Mode Selection (`lrprop`):** The core prediction engine selects between line-of-sight, diffraction, and troposcatter modes based on path geometry. For distances $d < d_{LOS}$ where $d_{LOS} = d_{L1} + d_{L2}$ represents the sum of horizon distances, the model applies two-ray propagation including ground reflection. The Fresnel reflection coefficient is computed accounting for ground permittivity ($\epsilon_r = 15$), conductivity ($\sigma = 0.005$ S/m), and grazing angle. The resulting attenuation includes interference between direct and reflected rays with appropriate phase relationships.
 
-For distances $d_{LOS} < d < 1.5 d_{LOS}$, the model enters diffraction mode. The implementation blends knife-edge diffraction loss (calculated through Fresnel parameter $\nu$ based on obstacle clearance) with smooth-Earth diffraction (computed via Vogler's method accounting for Earth curvature). The weighting between these mechanisms depends on terrain roughness, with smooth terrain favoring the rounded-obstacle formulation and rough terrain following knife-edge theory.
+For distances $d_{LOS} < d < 1.5 d_{LOS}$, the model enters diffraction mode. The implementation blends knife-edge diffraction loss (calculated through Fresnel parameter $\nu$ based on obstacle clearance) with smooth-Earth diffraction (computed via Vogler's method accounting for Earth curvature). The diffraction loss implementation employs a continuous terrain roughness weighting scheme rather than the discrete mode switching in some ITM variants. The weighting function w = (Δh/λ)²/[1 + (Δh/λ)²] provides smooth transition between smooth-earth diffraction (Vogler's method) for flat terrain and knife-edge diffraction for rough terrain. This modification eliminates prediction discontinuities that can occur in standard ITM when terrain roughness crosses threshold values, improving numerical stability for incremental path-by-path analysis along a profile. Additionally, the reference attenuation A_ref is not constrained to non-negative values, preserving physically valid signal enhancements that occur under favorable propagation conditions such as constructive two-ray interference or atmospheric ducting.
 
-Beyond $d > 1.5 d_{LOS}$, tropospheric scatter becomes relevant. The scatter loss calculation accounts for angular distance, scatter angle geometry, frequency, and atmospheric climate conditions. The final attenuation applies the minimum of scatter loss and extrapolated diffraction loss to ensure physical continuity across mode boundaries.
+Beyond $d > 1.5 d_{LOS}$, tropospheric scatter becomes relevant. The scatter loss calculation accounts for angular distance, scatter angle geometry, frequency, and atmospheric climate conditions. The implementation applies empirical climate-dependent corrections to the basic troposcatter formula, ranging from -5 dB (stable maritime atmosphere) to +5 dB (desert conditions with high atmospheric variability). These corrections supplement the refractivity-based climate modeling in standard ITM. The final attenuation applies the minimum of scatter loss and extrapolated diffraction loss to ensure physical continuity across mode boundaries.
 
 **Variability Calculation (`avar`):** Statistical variability accounts for location, time, and situation uncertainties through independent additive terms. Location variability $Y_L$ scales with terrain irregularity parameter $\Delta h$ and frequency-dependent factor $k_f$. Time variability $Y_T$ depends on climate code (Continental Temperate, climate code 5) and path distance. Situation variability $Y_S$ applies a standard deviation of 5 dB representing antenna pattern variations and local environmental effects. The total variability combines these components:
 
@@ -130,7 +132,13 @@ J(\nu_p)/6 & J(\nu_p) < 6 \text{ dB} \\
 
 and $C = 8.0 + 0.04 D_{km}$ provides distance-dependent correction with $D_{km}$ representing total path length in kilometers. This heuristic correction accounts for multiple scattering effects and ensures smooth transition behavior as additional edges become significant.
 
-The effective Earth radius used in all diffraction calculations is set to $R_e = 8.5 \times 10^6$ meters, corresponding to the standard 4/3 Earth radius factor accounting for normal atmospheric refractivity.
+The effective Earth radius used in all diffraction calculations is computed using the ITM standard formula:
+
+$$k = \frac{1}{1 - 0.04665 \cdot \exp(N_s/179.3)}$$
+
+$$a_{eff} = k \cdot a_{earth}$$
+
+For standard atmosphere ($N_s = 301$ N-units), this yields $k \approx 4/3$ and $a_{eff} \approx 8.495 \times 10^6$ meters.
 
 ### 5) Okumura-Hata and COST-231 Empirical Models
 
@@ -154,6 +162,8 @@ $$L_{rural} = L_U - 4.78[\log_{10}(f)]^2 + 18.33\log_{10}(f) - 40.94$$
 
 The implementation treats the terrain profile as a distance vector and computes path loss as a function of distance from the transmitter, independent of specific terrain elevation variations. Environmental classification is specified through the `Scenario.Environment` parameter with options for urban, suburban, and rural conditions.
 
+The Hata model's terrain-independent formulation presents a fundamental limitation for this comparative study. While EFIE, ITM, Bullington, and Deygout explicitly account for terrain profile variations, the Hata model applies a statistical average behavior derived from measurements in specific urban morphologies. Consequently, Hata predictions represent expected median loss over an ensemble of similar paths rather than site-specific predictions for the actual terrain profile. This distinction must be considered when interpreting comparative metrics: deviations between Hata and terrain-specific models reflect both model accuracy and the fundamental difference in prediction philosophy (statistical ensemble vs. deterministic path-specific).
+
 ## D. Simulation Parameters and Configuration
 
 All simulations executed under identical parameter settings to ensure valid comparison across models. The carrier frequency was set to 970 MHz, corresponding to the lower portion of the UHF band commonly used for broadcasting and mobile communications. Transmitter antenna height was specified as 52.0 meters above ground level, representative of broadcast tower installations. Receiver antenna height was set to 2.4 meters above ground level, consistent with mobile terminal or fixed-receiver configurations.
@@ -161,6 +171,8 @@ All simulations executed under identical parameter settings to ensure valid comp
 For the Longley-Rice model, ground electrical parameters were set to dielectric constant $\epsilon_r = 15$ and conductivity $\sigma = 0.005$ S/m, representing average terrain conditions. Surface refractivity was specified as $N_s = 301$ N-units (continental temperate climate). Polarization was set to horizontal, and confidence level was maintained at 50% (median predictions).
 
 The Hata/COST-231 model was configured for suburban environment classification, applying the appropriate correction factors to the urban baseline predictions. This classification was selected to match typical propagation conditions in the test scenarios without requiring site-specific calibration.
+
+Geometric consistency across all propagation models was ensured through standardized calculation of the effective Earth radius. All models employ the ITM standard formula k = 1/(1 - 0.04665·exp(Ns/179.3)) with surface refractivity Ns = 301 N-units, yielding k ≈ 4/3 and effective radius aeff ≈ 8.495×10⁶ meters. This standardization ensures that diffraction calculations, horizon determinations, and Earth curvature corrections are consistent across the EFIE, ITM, Bullington, and Deygout implementations, eliminating geometric discrepancies as a confounding variable in model comparisons.
 
 ## E. Comparative Analysis Framework
 
@@ -176,6 +188,8 @@ $$Bias = \frac{1}{N}\sum_{i=1}^{N}(PL_{model,i} - PL_{EFIE,i})$$
 
 where $PL_{model,i}$ represents the predicted path loss from the model under evaluation, $PL_{EFIE,i}$ represents the full-wave reference solution, and $N$ denotes the number of sample points along the profile. Positive bias indicates conservative (pessimistic) predictions with higher estimated path loss than the reference, while negative bias indicates optimistic predictions underestimating actual propagation loss.
 
+The selection of EFIE as the reference standard warrants clarification regarding its limitations. The EFIE implementation employs a two-dimensional integral equation solver with perfect electric conductor (PEC) boundary conditions, providing high-fidelity modeling of diffraction and surface wave interactions. However, the conversion from 2D field solutions to 3D path loss involves approximations in separating geometric spreading from terrain-specific effects. Additionally, the PEC assumption overestimates ground interaction effects compared to realistic lossy soil. These limitations imply that EFIE should be considered a high-fidelity reference for relative model comparison rather than absolute ground truth. The RMSE and bias metrics therefore quantify heuristic model deviation from a consistent computational reference, not necessarily from measured propagation behavior.
+
 ### 2) Computational Implementation
 
 The master harness script loads terrain profile data, validates input consistency (removing any NaN values or discontinuities), and sequentially executes each propagation model through standardized wrapper functions. Each wrapper accepts the common `Scenario` structure (containing frequency, antenna heights, and environment classification) and the `TerrainProfile` structure (containing distance and elevation vectors) as inputs, returning a path loss vector with consistent dimensionality.
@@ -189,3 +203,19 @@ Results aggregation constructs a unified data structure containing all model out
 The implementation maintains strict separation between configuration parameters and algorithm code to enable reproducible execution across different scenarios. All physical constants (speed of light, wavelength calculations, impedance relations) are computed from fundamental values rather than hardcoded approximations. File paths employ platform-independent construction through MATLAB's `fullfile` function. The setup script (`setup_project.m`) automatically configures the MATLAB path to include all necessary subdirectories, eliminating manual path management and reducing configuration errors.
 
 Version control through the project structure enables tracking of algorithm modifications and parameter adjustments. The modular architecture permits independent testing of individual propagation models through standalone runner scripts before integration into the comparative framework. This design facilitates debugging, validation against reference implementations, and incremental development of model improvements.
+
+## F. Model Limitations and Assumptions
+
+Each propagation model implementation embodies specific simplifying assumptions that constrain its domain of validity:
+
+**EFIE Full-Wave Model**: Assumes two-dimensional geometry with infinite extent perpendicular to the propagation plane, perfect electric conductor ground, and combines 2D diffraction effects with 3D spreading approximations. Computational cost scales as O(N²) with profile discretization, limiting practical application to paths under several kilometers with λ/4 sampling.
+
+**Longley-Rice ITM**: Employs median statistical predictions incorporating terrain irregularity as a bulk parameter rather than resolving individual terrain features. The implementation includes a modified continuous diffraction weighting scheme and preserves negative reference attenuation values representing signal enhancement, deviating slightly from some ITM variants. Valid for frequencies 20 MHz to 20 GHz and path lengths 1 to 2000 km.
+
+**Bullington Diffraction**: Reduces arbitrary terrain to a single equivalent knife-edge, potentially underestimating loss when multiple comparable obstacles exist. Most accurate for profiles with one dominant ridge. Does not account for atmospheric effects or frequency-dependent ground interactions beyond the wavelength dependence in the Fresnel parameter.
+
+**Deygout Diffraction**: Limits multiple-edge treatment to three obstacles (principal plus two secondary edges) with empirical correction factors (C = 8.0 + 0.04D_km) derived from limited measurement campaigns. Accuracy degrades for profiles with many comparable obstacles where higher-order scattering becomes significant.
+
+**Okumura-Hata/COST-231**: Applies statistical median predictions derived from measurements in specific urban morphologies (Tokyo metropolitan area for original Hata formulation). Completely independent of actual terrain profile geometry, providing ensemble-average behavior rather than site-specific predictions. Valid only within specified parameter ranges (frequency, antenna heights, distances) and environmental classifications (urban, suburban, rural) that match the original measurement campaigns.
+
+These limitations contextualize the comparative analysis: discrepancies between models reflect both prediction accuracy and fundamental differences in modeling philosophy (deterministic vs. statistical, terrain-specific vs. ensemble-average, full-wave vs. high-frequency approximation).

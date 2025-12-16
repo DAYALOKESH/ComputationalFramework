@@ -112,7 +112,8 @@ function [max_nu, max_idx] = find_max_nu(dists, heights, tx_h, rx_h, lambda)
         return;
     end
 
-    R_e = 8500000; % Effective Earth Radius (m) (Standard 4/3 approx)
+    % Use standardized effective Earth radius for consistency across models
+    [R_e, ~] = get_effective_earth_radius(301);
 
     d_total = dists(end) - dists(1);
 

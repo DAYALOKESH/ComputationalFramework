@@ -80,11 +80,9 @@ function [A_ref, mode] = lrprop(d, prop, prop_params)
         end
     end
     
-    % CRITICAL PHYSICS FIX:
-    % Reference Attenuation relative to Free Space cannot be negative for median terrain.
-    % (Negative A_ref implies Signal > Free Space, i.e., Gain).
-    % While possible in specific multipath spots, for a median model, we clamp it.
-    A_ref = max(0, A_ref);
+    % Note: A_ref can be negative in cases of ducting, constructive interference,
+    % or favorable ground reflections. This is physically valid and represents
+    % signal enhancement relative to free space. No clamping applied - trust the physics.
 
 end
 
@@ -92,7 +90,17 @@ end
 
 function A_diff = calc_diffraction(d, freq, prop, lambda)
     % ITM Diffraction - Blending Knife Edge and Smooth Earth
-    % Implements full ITM diffraction methodology with terrain roughness weighting
+    %
+    % MODIFIED ITM DIFFRACTION WEIGHTING (Non-standard)
+    % This implementation uses a continuous weighting function between
+    % knife-edge (rough terrain) and smooth-earth (smooth terrain) diffraction.
+    % Standard ITM uses discrete mode switching.
+    %
+    % Weighting function: w(k) = k²/(1+k²) where k = delta_h/lambda
+    % This provides smooth transition across all roughness values.
+    %
+    % Justification: Eliminates discontinuities in predictions as terrain
+    % roughness varies, improving numerical stability for iterative analysis.
     
     % Knife-edge diffraction parameter
     theta_tot = prop.the(1) + prop.the(2) + d / prop.a_eff;
@@ -119,15 +127,14 @@ function A_diff = calc_diffraction(d, freq, prop, lambda)
     
     % Terrain roughness weighting factor
     % w = 0 for smooth terrain (use A_r), w = 1 for rough terrain (use A_ke)
-    % Continuous smooth function across all roughness values
     delta_h = prop.delta_h;
     k_rough = delta_h / lambda;
     w = k_rough^2 / (1 + k_rough^2);
     
     % Blended diffraction attenuation
-    % For smooth terrain, rounded-earth dominates; for rough terrain, knife-edge dominates
-    A_fo = 0;  % Foliage/forward obstacle loss (can be extended for vegetation)
-    A_diff = (1 - w) * A_r + w * A_ke + A_fo;
+    % Note: Foliage/forward obstacle loss (A_fo) not implemented in this version.
+    % Can be extended for vegetation modeling in future iterations.
+    A_diff = (1 - w) * A_r + w * A_ke;
 end
 
 function A_scat = calc_scatter(d, freq, prop, params)
@@ -151,10 +158,17 @@ function A_scat = calc_scatter(d, freq, prop, params)
     % Accounts for frequency, angular distance, and scatter angle
     A_scat = 165 + 20*log10(f_ghz) + 30*log10(theta_d) - 10*log10(theta_s);
     
-    % Climate correction factor based on atmospheric conditions
-    % klim: 1=Equatorial, 2=Continental Subtropical, 3=Maritime Subtropical,
-    %       4=Desert, 5=Continental Temperate, 6=Maritime Temperate Land,
-    %       7=Maritime Temperate Sea
+    % CUSTOM CLIMATE CORRECTIONS (Non-standard ITM)
+    % These empirical adjustments account for regional atmospheric stability:
+    % 1=Equatorial (0 dB): Baseline
+    % 2=Continental Subtropical (-2 dB): Slightly more stable
+    % 3=Maritime Subtropical (-4 dB): Stable marine atmosphere
+    % 4=Desert (+5 dB): Highly variable, increased scattering
+    % 5=Continental Temperate (0 dB): Baseline
+    % 6=Maritime Temperate Land (-3 dB): Moderate marine influence
+    % 7=Maritime Temperate Sea (-5 dB): Stable marine atmosphere
+    %
+    % Standard ITM accounts for climate through N_s; these are additional corrections.
     klim = params.clim_code;
     climate_factors = [0, -2, -4, +5, 0, -3, -5]; % dB adjustments
     if klim >= 1 && klim <= 7
